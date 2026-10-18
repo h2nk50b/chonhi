@@ -153,5 +153,31 @@ D.menu.push({id:id(),sellerId:me,name:n,price:p,qty:q,img:im});window._img='';sa
 function delItem(m){if(!confirm('Xóa món?'))return;const it=D.menu.find(x=>x.id===m);if(GAS&&it&&it.img&&!it.img.startsWith('data:'))call({a:'delimg',id:it.img}).catch(()=>{});D.menu=D.menu.filter(x=>x.id!==m);save();render()}
 V.mem=()=>{if(GAS)call({a:'usage'}).then(r=>{const el=$('#memv');if(el)el.innerHTML=`<p><b>${(r.used/1048576).toFixed(1)} MB</b> / ${(r.cap/1048576).toFixed(0)} MB • ${r.count} ảnh</p><div style="height:12px;border-radius:8px;background:var(--bd)"><div style="height:12px;border-radius:8px;background:var(--pr);width:${Math.min(100,r.used/r.cap*100)}%"></div></div><p><button class="r" onclick="clean()">Dọn ảnh không còn món nào dùng</button></p>`});return `<div class="card"><h3>Bộ nhớ ảnh (Google Drive)</h3><div id="memv">${GAS?'Đang tải…':'Chưa kết nối Drive.'}</div></div>`};
 async function clean(){const keep=D.menu.map(m=>m.img).filter(x=>x&&!x.startsWith('data:'));const r=await call({a:'clean',keep});alert('Đã xóa '+r.removed+' ảnh thừa');render()}
+// ---- Sửa lỗi quét QR: dùng bộ đọc của trình duyệt (nếu có) + jsQR, QR to và rõ hơn
+function qr(t){const q=qrcode(0,'L');q.addData(t);q.make();const n=q.getModuleCount(),m=4;let p='';for(let r=0;r<n;r++)for(let c=0;c<n;c++)if(q.isDark(r,c))p+=`M${c+m},${r+m}h1v1h-1z`;return `<svg viewBox="0 0 ${n+2*m} ${n+2*m}" shape-rendering="crispEdges"><rect width="100%" height="100%" fill="#fff"/><path d="${p}" fill="#000"/></svg>`}
+function closeM(){window._payWatch=null;stopCam();$('#modal').style.display='none'}
+function needQR(){return new Promise(ok=>{if(typeof jsQR!=='undefined')return ok(true);const sc=document.createElement('script');sc.src='https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';sc.onload=()=>ok(typeof jsQR!=='undefined');sc.onerror=()=>ok(false);document.head.appendChild(sc)})}
+function scan(cb){window._cb=cb;modal(`<h3>📷 Quét mã QR</h3><video id="vd" playsinline muted></video><p class="mu" id="sm">Đang mở camera…</p>
+<label class="mu">Hoặc chụp ảnh mã QR:<input type="file" accept="image/*" capture="environment" onchange="fromFile(this.files[0])"></label>
+<input id="mt" placeholder="Hoặc nhập mã (KQR:...)"><button class="g" onclick="done($('#mt').value.trim())">OK</button><button class="l" onclick="closeM()">Hủy</button>`);
+const st=t=>{const el=$('#sm');if(el)el.textContent=t};
+navigator.mediaDevices?.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}}}).then(async s=>{stream=s;const v=$('#vd');v.srcObject=s;await v.play();
+try{const t=s.getVideoTracks()[0],c=t.getCapabilities&&t.getCapabilities();if(c&&c.focusMode&&c.focusMode.includes('continuous'))await t.applyConstraints({advanced:[{focusMode:'continuous'}]})}catch(x){}
+let det=null;try{if('BarcodeDetector' in window)det=new BarcodeDetector({formats:['qr_code']})}catch(x){det=null}
+const lib=await needQR();if(!det&&!lib)return st('Không tải được bộ đọc QR (mạng bị chặn?). Hãy dùng nút chụp ảnh hoặc nhập mã.');
+const cv=document.createElement('canvas'),x=cv.getContext('2d',{willReadFrequently:true});let last=0,n=0;
+(async function lp(){if(!stream)return;const now=performance.now();if(v.videoWidth&&now-last>150){last=now;n++;
+if(det){try{const r=await det.detect(v);if(r.length)return done(r[0].rawValue)}catch(er){det=null}}
+if(lib){try{const w=Math.min(800,v.videoWidth),h=Math.round(v.videoHeight*w/v.videoWidth);cv.width=w;cv.height=h;x.drawImage(v,0,0,w,h);const r=jsQR(x.getImageData(0,0,w,h).data,w,h,{inversionAttempts:'attemptBoth'});if(r&&r.data)return done(r.data)}catch(er){}}
+if(n%5==0)st('Đang tìm mã QR… ('+n+' lần thử). Đưa mã vào giữa khung, cách 20–30cm.')}
+raf=requestAnimationFrame(lp)})()}).catch(()=>{$('#vd').style.display='none';st((/Zalo|FBAN|FBAV|Messenger|Instagram/i.test(navigator.userAgent)?'Bạn đang mở trong Zalo/Facebook nên camera bị chặn. Hãy mở bằng Chrome hoặc Safari. ':'Chưa mở được camera (hãy bấm Cho phép). ')+'Bạn vẫn có thể chụp ảnh mã QR hoặc nhập mã.')})}
+async function fromFile(f){if(!f)return;const bm=await createImageBitmap(f).catch(()=>null);if(!bm)return alert('Không đọc được ảnh');
+if('BarcodeDetector' in window){try{const r=await new BarcodeDetector({formats:['qr_code']}).detect(bm);if(r.length)return done(r[0].rawValue)}catch(x){}}
+for(const m of [1600,1000,640,400]){const k=Math.min(1,m/Math.max(bm.width,bm.height)),c=document.createElement('canvas');c.width=Math.round(bm.width*k);c.height=Math.round(bm.height*k);const x=c.getContext('2d');x.drawImage(bm,0,0,c.width,c.height);
+const r=jsQR(x.getImageData(0,0,c.width,c.height).data,c.width,c.height,{inversionAttempts:'attemptBoth'});if(r&&r.data)return done(r.data)}
+alert('Chưa đọc được mã QR. Hãy chụp gần hơn, mã nằm giữa ảnh, đủ sáng, và tăng độ sáng màn hình của người bán.')}
+// Người bán: tự báo "đã thanh toán" ngay trên màn hình QR
+function payQR(o){const x=D.orders.find(y=>y.id===o),a=x.price*x.qty;window._payWatch=o;modal(`<h3>Thu ${$$(a)}</h3><p class="mu">${e(x.name)} x${x.qty} • ${e(U(x.buyerId).name)}</p>${qr(`KQR:PAY:${o}:${a.toFixed(2)}`)}<p class="mu">Bé quét mã này để thanh toán. Hãy tăng độ sáng màn hình.</p><button class="l" onclick="closeM()">Đóng</button>`)}
+function poll(){if(busy||stream||(document.activeElement&&document.activeElement.tagName=='INPUT'))return;pull().then(n=>{if(!n||busy||n.ver===D.ver)return;D=n;const w=window._payWatch;if(w){const o=D.orders.find(y=>y.id===w);if(o&&o.status!='unpaid'){modal(`<h3>✅ Đã nhận thanh toán!</h3><p><b>${$$(o.price*o.qty)}</b> từ ${e(U(o.buyerId).name)}<br>${e(o.name)} x${o.qty}</p><button class="g" onclick="closeM()">OK</button>`);window._payWatch=null}}render()}).catch(()=>{})}
 boot();
 </script></body></html>
