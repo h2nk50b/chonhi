@@ -168,8 +168,8 @@ const lib=await needQR();if(!det&&!lib)return st('Không tải được bộ đ�
 const cv=document.createElement('canvas'),x=cv.getContext('2d',{willReadFrequently:true});let last=0,n=0;
 (async function lp(){if(!stream)return;const now=performance.now();if(v.videoWidth&&now-last>150){last=now;n++;
 if(det){try{const r=await det.detect(v);if(r.length)return done(r[0].rawValue)}catch(er){det=null}}
-if(lib){try{const w=Math.min(800,v.videoWidth),h=Math.round(v.videoHeight*w/v.videoWidth);cv.width=w;cv.height=h;x.drawImage(v,0,0,w,h);const r=jsQR(x.getImageData(0,0,w,h).data,w,h,{inversionAttempts:'attemptBoth'});if(r&&r.data)return done(r.data)}catch(er){}}
-if(n%5==0)st('Đang tìm mã QR… ('+n+' lần thử). Đưa mã vào giữa khung, cách 20–30cm.')}
+if(lib){try{const V=v.videoWidth,H=v.videoHeight;for(const[sx,sy,sw,sh,ww] of [[0,0,V,H,Math.min(800,V)],[V*.2,H*.2,V*.6,H*.6,Math.min(800,V*.6)]]){const w=Math.round(ww),h=Math.round(sh*w/sw);cv.width=w;cv.height=h;x.drawImage(v,sx,sy,sw,sh,0,0,w,h);const r=jsQR(x.getImageData(0,0,w,h).data,w,h,{inversionAttempts:'attemptBoth'});if(r&&r.data)return done(r.data)}}catch(er){}}
+if(n%5==0)st('Đang tìm mã QR… ('+n+' lần thử, camera '+v.videoWidth+'x'+v.videoHeight+'). Đưa mã vào giữa khung, cách 20–30cm. Nếu không được, nhập MÃ CHỮ dưới mã QR vào ô bên dưới.')}
 raf=requestAnimationFrame(lp)})()}).catch(()=>{$('#vd').style.display='none';st((/Zalo|FBAN|FBAV|Messenger|Instagram/i.test(navigator.userAgent)?'Bạn đang mở trong Zalo/Facebook nên camera bị chặn. Hãy mở bằng Chrome hoặc Safari. ':'Chưa mở được camera (hãy bấm Cho phép). ')+'Bạn vẫn có thể chụp ảnh mã QR hoặc nhập mã.')})}
 async function fromFile(f){if(!f)return;const bm=await createImageBitmap(f).catch(()=>null);if(!bm)return alert('Không đọc được ảnh');
 if('BarcodeDetector' in window){try{const r=await new BarcodeDetector({formats:['qr_code']}).detect(bm);if(r.length)return done(r[0].rawValue)}catch(x){}}
@@ -177,7 +177,14 @@ for(const m of [1600,1000,640,400]){const k=Math.min(1,m/Math.max(bm.width,bm.he
 const r=jsQR(x.getImageData(0,0,c.width,c.height).data,c.width,c.height,{inversionAttempts:'attemptBoth'});if(r&&r.data)return done(r.data)}
 alert('Chưa đọc được mã QR. Hãy chụp gần hơn, mã nằm giữa ảnh, đủ sáng, và tăng độ sáng màn hình của người bán.')}
 // Người bán: tự báo "đã thanh toán" ngay trên màn hình QR
-function payQR(o){const x=D.orders.find(y=>y.id===o),a=x.price*x.qty;window._payWatch=o;modal(`<h3>Thu ${$$(a)}</h3><p class="mu">${e(x.name)} x${x.qty} • ${e(U(x.buyerId).name)}</p>${qr(`KQR:PAY:${o}:${a.toFixed(2)}`)}<p class="mu">Bé quét mã này để thanh toán. Hãy tăng độ sáng màn hình.</p><button class="l" onclick="closeM()">Đóng</button>`)}
+function payQR(o){const x=D.orders.find(y=>y.id===o),a=x.price*x.qty;window._payWatch=o;modal(`<h3>Thu ${$$(a)}</h3><p class="mu">${e(x.name)} x${x.qty} • ${e(U(x.buyerId).name)}</p>${qr(`KQR:PAY:${o}:${a.toFixed(2)}`)}<p class="mu">Bé quét mã này để thanh toán. Hãy tăng độ sáng màn hình.</p><p>Không quét được? Nhập mã: <b style="font-size:24px;letter-spacing:2px">${sc(x)}</b></p><button class="l" onclick="closeM()">Đóng</button>`)}
 function poll(){if(busy||stream||(document.activeElement&&document.activeElement.tagName=='INPUT'))return;pull().then(n=>{if(!n||busy||n.ver===D.ver)return;D=n;const w=window._payWatch;if(w){const o=D.orders.find(y=>y.id===w);if(o&&o.status!='unpaid'){modal(`<h3>✅ Đã nhận thanh toán!</h3><p><b>${$$(o.price*o.qty)}</b> từ ${e(U(o.buyerId).name)}<br>${e(o.name)} x${o.qty}</p><button class="g" onclick="closeM()">OK</button>`);window._payWatch=null}}render()}).catch(()=>{})}
+// ---- Mã chữ dự phòng khi không quét được QR (nhập tay vào ô 'Hoặc nhập mã')
+const sc=o=>o.id.slice(-5).toUpperCase();
+function norm(t){t=(t||'').trim();if(/^KQR:/i.test(t))return t;const c=t.toUpperCase().replace(/\s+/g,'');
+const o=D.orders.find(x=>x.buyerId==me&&x.status=='unpaid'&&sc(x)==c);if(o)return `KQR:PAY:${o.id}:${(o.price*o.qty).toFixed(2)}`;
+const tp=D.topups.find(x=>x.code==c);if(tp)return 'KQR:TOP:'+tp.code;return t}
+function done(t){const cb=window._cb;closeM();if(t)cb(norm(t))}
+function showCode(c){const t=D.topups.find(x=>x.code===c);modal(`<h3>Nạp ${$$(t.amt)}</h3>${qr('KQR:TOP:'+c)}<p>Mã chữ: <b style="font-size:20px;letter-spacing:2px">${c}</b></p><p class="mu">Dùng 1 lần • ${t.used?'ĐÃ DÙNG':'Chưa dùng'}</p><button class="l" onclick="closeM()">Đóng</button>`);render()}
 boot();
 </script></body></html>
