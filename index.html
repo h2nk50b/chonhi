@@ -31,22 +31,22 @@ function save(){try{localStorage.setItem('kidshop',JSON.stringify(D))}catch(x){}
 const id=()=>'i'+(D.n++)+Math.random().toString(36).slice(2,6);
 const U=i=>D.users.find(u=>u.id===i)||{name:'?',bal:0};
 const fd=t=>new Date(t).toLocaleString('vi-VN');
-const RL={admin:'Quản trị',seller:'Người bán',buyer:'Người mua'};
+const RL={admin:'Quản trị',seller:'Người bán',buyer:'Người mua',shipper:'Shipper'};const SHIP=5;
 function tx(u,type,amt,note){D.tx.push({t:Date.now(),uid:u,type,amt,note})}
-function note(u,m){D.notes.push({uid:u,msg:m,t:Date.now(),read:false})}
+function note(u,m,say){D.notes.push({uid:u,msg:m,t:Date.now(),read:false,say:say||''})}
 function qr(txt){const q=qrcode(0,'M');q.addData(txt);q.make();return q.createSvgTag(6,4)}
 function modal(h){$('#mb').innerHTML=h;$('#modal').style.display='flex'}
 function closeM(){stopCam();$('#modal').style.display='none'}
 $('#modal').onclick=ev=>{if(ev.target.id==='modal')closeM()};
 function login(){const u=D.users.find(x=>x.name.toLowerCase()===$('#ln').value.trim().toLowerCase()&&x.pin===$('#lp').value);
-if(!u)return alert('Sai tên hoặc mã PIN!');me=u.id;tab=({admin:'users',seller:'orders',buyer:'menu'})[u.role];render()}
+if(!u)return alert('Sai tên hoặc mã PIN!');me=u.id;unlockVoice();tab=({admin:'users',seller:'orders',buyer:'menu',shipper:'jobs'})[u.role];render()}
 function logout(){me=null;render()}
 function setTab(t){tab=t;render()}
 function render(){load0();const A=$('#app');
 if(!me){A.innerHTML=`<div class="card"><h1>🛒 Chợ Nhí</h1><p class="mu">Trò chơi mua bán cho bé. Đơn vị tiền: $</p><input id="ln" placeholder="Tên tài khoản"><input id="lp" type="password" placeholder="Mã PIN"><button onclick="login()">Đăng nhập</button><p class="mu">Lần đầu: tài khoản <b>admin</b>, PIN <b>1234</b> (hãy đổi sau khi tạo tài khoản).</p></div>`;return}
 const u=U(me);const t=TABS[u.role];
-const ns=D.notes.filter(n=>n.uid===me&&!n.read);
-A.innerHTML=`<div class="row"><h2>${u.role=='admin'?'🛡️':u.role=='seller'?'🧑‍🍳':'🧒'} ${e(u.name)} <span class="tag">${RL[u.role]}</span></h2><div>${u.role!='admin'?`<span class="bal">${$$(u.bal)}</span>`:''} <button class="l" onclick="logout()">Thoát</button></div></div>
+const ns=D.notes.filter(n=>n.uid===me&&!n.read);setTimeout(announce,50);
+A.innerHTML=`<div class="row"><h2>${u.role=='admin'?'🛡️':u.role=='seller'?'🧑‍🍳':u.role=='shipper'?'🛵':'🧒'} ${e(u.name)} <span class="tag">${RL[u.role]}</span></h2><div>${u.role!='admin'?`<span class="bal">${$$(u.bal)}</span>`:''} ${u.role=='seller'?`<button class="l" onclick="toggleVoice()">${voiceOn?'🔊':'🔇'}</button><button class="l" onclick="testVoice()">Thử giọng</button>`:''}<button class="l" onclick="logout()">Thoát</button></div></div>
 ${ns.map(n=>`<div class="note">🔔 ${e(n.msg)} <button class="l" onclick="rd('${n.t}')">OK</button></div>`).join('')}
 <div class="tabs">${t.map(x=>`<button class="${tab==x[0]?'on':'l'}" onclick="setTab('${x[0]}')">${x[1]}</button>`).join('')}</div>${V[tab]()}`}
 function load0(){}
@@ -54,9 +54,10 @@ function rd(t){D.notes.forEach(n=>{if(n.t==t&&n.uid===me)n.read=true});save();re
 window.addEventListener('storage',()=>{if(!document.activeElement||document.activeElement.tagName!='INPUT'){load();render()}});
 const TABS={admin:[['users','👥 Tài khoản'],['codes','🎟️ Mã nạp tiền'],['rep','📊 Báo cáo'],['mem','🖼️ Bộ nhớ ảnh']],
 seller:[['orders','📦 Đơn hàng'],['menu','🍔 Thực đơn'],['stock','🏪 Tồn kho'],['pays','💰 Thanh toán'],['rep','📊 Báo cáo']],
+shipper:[['jobs','🛵 Giao hàng'],['rep','📊 Báo cáo']],
 buyer:[['menu','🍔 Menu'],['my','🧾 Đơn của tôi'],['canc','❌ Đã hủy'],['hist','💸 Chi tiêu'],['top','➕ Nạp tiền'],['rep','📊 Chi tiêu theo kỳ']]};
 const img=m=>m.img?`<img loading="lazy" src="${m.img.startsWith('data:')?m.img:'https://drive.google.com/thumbnail?id='+encodeURIComponent(m.img)+'&sz=w600'}">`:'<div class="ph">🍽️</div>';
-const stl={unpaid:'⏳ Chờ thanh toán',paid:'✅ Đã thanh toán',delivered:'🎉 Đã giao',cancelled:'❌ Đã hủy'};
+const stl={unpaid:'⏳ Chờ shipper nhận',shipping:'🚚 Đang giao',paid:'✅ Đã thanh toán',delivered:'🎉 Đã giao',cancelled:'❌ Đã hủy'};
 // ---- Admin
 function addUser(){const n=$('#nn').value.trim(),p=$('#np').value.trim();if(!n||!p)return alert('Nhập tên và PIN');
 if(D.users.some(x=>x.name.toLowerCase()==n.toLowerCase()))return alert('Tên đã tồn tại');
@@ -69,7 +70,7 @@ function mkCode(){const a=+$('#ca').value;if(!(a>0))return alert('Nhập số ti
 D.topups.push({code:c,amt:a,used:false,t:Date.now()});save();showCode(c)}
 function showCode(c){const t=D.topups.find(x=>x.code===c);modal(`<h3>Nạp ${$$(t.amt)}</h3>${qr('KQR:TOP:'+c)}<p class="mu">Dùng 1 lần • ${t.used?'ĐÃ DÙNG':'Chưa dùng'}</p><button class="l" onclick="closeM()">Đóng</button>`);render()}
 V={};
-V.users=()=>`<div class="card"><h3>Tạo tài khoản</h3><div class="row"><input id="nn" placeholder="Tên" style="flex:1"><input id="np" placeholder="PIN" style="flex:1"></div><div class="row"><select id="nr"><option value="buyer">Người mua</option><option value="seller">Người bán</option><option value="admin">Quản trị</option></select><input id="nb" type="number" min="0" step="0.01" placeholder="Số dư ban đầu $" style="flex:1"><button onclick="addUser()">Tạo</button></div></div>
+V.users=()=>`<div class="card"><h3>Tạo tài khoản</h3><div class="row"><input id="nn" placeholder="Tên" style="flex:1"><input id="np" placeholder="PIN" style="flex:1"></div><div class="row"><select id="nr"><option value="buyer">Người mua</option><option value="seller">Người bán</option><option value="shipper">Shipper</option><option value="admin">Quản trị</option></select><input id="nb" type="number" min="0" step="0.01" placeholder="Số dư ban đầu $" style="flex:1"><button onclick="addUser()">Tạo</button></div></div>
 <div class="card"><table><tr><th>Tên</th><th>Vai trò</th><th>Số dư</th><th></th></tr>${D.users.map(u=>`<tr><td>${e(u.name)}</td><td>${RL[u.role]}</td><td>${u.role=='admin'?'–':$$(u.bal)}</td><td>${u.role!='admin'?`<button onclick="adj('${u.id}')">Số dư</button>`:''}<button class="l" onclick="chPin('${u.id}')">PIN</button>${u.id!=me?`<button class="r" onclick="delU('${u.id}')">Xóa</button>`:''}</td></tr>`).join('')}</table></div>`;
 V.codes=()=>`<div class="card"><h3>Tạo mã QR nạp tiền (dùng 1 lần)</h3><div class="row"><input id="ca" type="number" min="0.01" step="0.01" placeholder="Số tiền $" style="flex:1"><button onclick="mkCode()">Tạo mã QR</button></div></div>
 <div class="card"><table>${D.topups.slice().reverse().map(t=>`<tr><td>${t.code}</td><td>${$$(t.amt)}</td><td>${t.used?'Đã dùng bởi '+e(U(t.by).name):'Chưa dùng'}</td><td>${t.used?'':`<button onclick="showCode('${t.code}')">Xem QR</button>`}</td></tr>`).join('')||'<tr><td>Chưa có mã</td></tr>'}</table></div>`;
@@ -92,7 +93,7 @@ else if(p[1]==='PAY'){const o=D.orders.find(x=>x.id===p[2]);if(!o||o.buyerId!==m
 const amt=o.price*o.qty;if(Math.abs(amt-(+p[3]))>0.001)return alert('Số tiền trên mã không khớp!');if(u.bal<amt)return alert('Không đủ tiền! Cần '+$$(amt));
 if(!confirm(`Thanh toán ${$$(amt)} cho "${o.name}" x${o.qty}?`))return;
 u.bal-=amt;U(o.sellerId).bal+=amt;o.status='paid';o.paidAt=Date.now();tx(me,'pay',-amt,`Mua ${o.name} x${o.qty}`);tx(o.sellerId,'income',amt,`${u.name} mua ${o.name} x${o.qty}`);
-note(o.sellerId,`${u.name} đã thanh toán ${$$(amt)} cho ${o.name} x${o.qty}`);save();alert('Thanh toán thành công ✅');render()}else alert('Mã QR không hợp lệ')}
+note(o.sellerId,`${u.name} đã thanh toán ${$$(amt)} cho ${o.name} x${o.qty}`,`Bạn đã được thanh toán ${String(+amt.toFixed(2)).replace('.',' phẩy ')} đô la cho đơn hàng ${o.qty} ${o.name}`);save();alert('Thanh toán thành công ✅');render()}else alert('Mã QR không hợp lệ')}
 function order(m){const q=Math.floor(+$('#q'+m).value||1);const it=D.menu.find(x=>x.id===m);if(!it||q<1||q>it.qty)return alert('Số lượng không hợp lệ (còn '+it.qty+')');
 it.qty-=q;D.orders.push({id:id(),buyerId:me,sellerId:it.sellerId,itemId:m,name:it.name,price:it.price,qty:q,status:'unpaid',t:Date.now()});save();tab='my';render()}
 function cancel(o){const x=D.orders.find(y=>y.id===o);if(!confirm('Hủy đơn này?'))return;if(x.status==='paid'){const a=x.price*x.qty;U(x.buyerId).bal+=a;U(x.sellerId).bal-=a;tx(x.buyerId,'refund',a,'Hoàn tiền '+x.name);tx(x.sellerId,'refund',-a,'Hoàn tiền '+x.name);note(x.buyerId,`Đơn ${x.name} bị hủy, đã hoàn ${$$(a)}`)}
@@ -109,7 +110,7 @@ D.menu.push({id:id(),sellerId:me,name:n,price:p,qty:q,img:window._img||''});wind
 function pic(f){if(!f)return;const im=new Image();im.onload=()=>{const c=document.createElement('canvas'),k=300/Math.max(im.width,im.height,300)*(im.width>300||im.height>300?1:1);const s=Math.min(1,300/Math.max(im.width,im.height));c.width=im.width*s;c.height=im.height*s;c.getContext('2d').drawImage(im,0,0,c.width,c.height);window._img=c.toDataURL('image/jpeg',.7);$('#pv').src=window._img;$('#pv').style.display='block'};im.src=URL.createObjectURL(f)}
 function addQty(m){const v=prompt('Số lượng mới:');if(v===null)return;const n=Math.floor(+v);if(n>=0){D.menu.find(x=>x.id===m).qty=n;save();render()}}
 function delItem(m){if(confirm('Xóa món?')){D.menu=D.menu.filter(x=>x.id!==m);save();render()}}
-function payQR(o){const x=D.orders.find(y=>y.id===o),a=x.price*x.qty;modal(`<h3>Thu ${$$(a)}</h3><p class="mu">${e(x.name)} x${x.qty} • ${e(U(x.buyerId).name)}</p>${qr(`KQR:PAY:${o}:${a.toFixed(2)}`)}<p class="mu">Bé quét mã này để thanh toán</p><button class="l" onclick="closeM()">Đóng</button>`)}
+function payQR(o){const x=D.orders.find(y=>y.id===o),a=x.price*x.qty;modal(`<h3>Giao đơn ${$$(a)}</h3><p class="mu">${e(x.name)} x${x.qty} • ${e(U(x.buyerId).name)}</p>${qr(`KQR:PAY:${o}:${a.toFixed(2)}`)}<p class="mu">Bé quét mã này để thanh toán</p><button class="l" onclick="closeM()">Đóng</button>`)}
 function deliver(o){D.orders.find(x=>x.id==o).status='delivered';note(D.orders.find(x=>x.id==o).buyerId,'Món của bạn đã được giao 🎉');save();render()}
 function sMenu(){return `<div class="card"><h3>Đăng món mới</h3><label class="mu">📸 Chụp ảnh món:<input type="file" accept="image/*" capture="environment" onchange="pic(this.files[0])"></label><img id="pv" style="display:none;width:120px;border-radius:12px"><input id="in" placeholder="Tên món"><div class="row"><input id="ip" type="number" min="0.01" step="0.01" placeholder="Đơn giá $" style="flex:1"><input id="iq" type="number" min="0" placeholder="Số lượng" style="flex:1"></div><button onclick="addItem()">Đăng món</button></div>
 <div class="grid">${D.menu.filter(m=>m.sellerId==me).map(m=>`<div class="card">${img(m)}<b>${e(m.name)}</b><div>${$$(m.price)} • còn ${m.qty}</div><button class="l" onclick="addQty('${m.id}')">Sửa SL</button><button class="r" onclick="delItem('${m.id}')">Xóa</button></div>`).join('')}</div>`}
@@ -123,12 +124,12 @@ const ymd=t=>{const x=new Date(t);return x.getFullYear()+'-'+String(x.getMonth()
 function range(){const[y,m,d]=rp.d.split('-').map(Number);let a=new Date(y,m-1,d),b;
 if(rp.m=='day')b=new Date(y,m-1,d+1);else if(rp.m=='week'){const w=(a.getDay()+6)%7;a=new Date(y,m-1,d-w);b=new Date(y,m-1,d-w+7)}else{a=new Date(y,m-1,1);b=new Date(y,m,1)}return[a.getTime(),b.getTime()]}
 function rpSet(k,v){if(k=='d'&&!v)return;rp[k]=v;render()}
-V.rep=()=>{const u=U(me),[a,b]=range();const mine=o=>u.role=='admin'||(u.role=='seller'?o.sellerId==me:o.buyerId==me);
+V.rep=()=>{const u=U(me),[a,b]=range();const mine=o=>u.role=='admin'||(u.role=='seller'?o.sellerId==me:u.role=='shipper'?o.shipperId==me:o.buyerId==me);
 const os=D.orders.filter(o=>o.t>=a&&o.t<b&&mine(o));const paid=o=>o.status=='paid'||o.status=='delivered';
-const sum=l=>l.reduce((s,o)=>s+o.price*o.qty,0);const days={};os.forEach(o=>{(days[ymd(o.t)]=days[ymd(o.t)]||[]).push(o)});
+const sum=l=>l.reduce((s,o)=>s+(u.role=='shipper'?(o.ship||0):o.price*o.qty+(u.role=='buyer'?(o.ship||0):0)),0);const days={};os.forEach(o=>{(days[ymd(o.t)]=days[ymd(o.t)]||[]).push(o)});
 const ks=Object.keys(days).sort(),mx=Math.max(1,...ks.map(k=>sum(days[k].filter(paid))));
 const top=D.tx.filter(t=>t.type=='topup'&&t.t>=a&&t.t<b&&(u.role=='admin'||t.uid==me)).reduce((s,t)=>s+t.amt,0);
-const lb=u.role=='seller'?'Doanh thu':u.role=='buyer'?'Đã chi':'Tổng mua bán';
+const lb=u.role=='seller'?'Doanh thu':u.role=='buyer'?'Đã chi (gồm ship)':u.role=='shipper'?'Phí ship':'Tổng mua bán';
 return `<div class="card"><div class="row"><div>${[['day','Ngày'],['week','Tuần'],['month','Tháng']].map(x=>`<button class="${rp.m==x[0]?'':'l'}" onclick="rpSet('m','${x[0]}')">${x[1]}</button>`).join('')}</div><input type="date" value="${rp.d}" onchange="rpSet('d',this.value)" style="width:auto"></div>
 <p class="mu">${new Date(a).toLocaleDateString('vi-VN')} → ${new Date(b-1).toLocaleDateString('vi-VN')}</p>
 <div class="grid"><div><div class="mu">Số đơn</div><b>${os.length}</b></div><div><div class="mu">${lb}</div><b class="bal">${$$(sum(os.filter(paid)))}</b></div><div><div class="mu">Chờ thanh toán</div><b>${$$(sum(os.filter(o=>o.status=='unpaid')))}</b></div><div><div class="mu">Đã hủy</div><b>${os.filter(o=>o.status=='cancelled').length} đơn</b></div>${u.role!='seller'?`<div><div class="mu">Nạp tiền</div><b>${$$(top)}</b></div>`:''}</div></div>
@@ -155,7 +156,7 @@ V.mem=()=>{if(GAS)call({a:'usage'}).then(r=>{const el=$('#memv');if(el)el.innerH
 async function clean(){const keep=D.menu.map(m=>m.img).filter(x=>x&&!x.startsWith('data:'));const r=await call({a:'clean',keep});alert('Đã xóa '+r.removed+' ảnh thừa');render()}
 // ---- Sửa lỗi quét QR: dùng bộ đọc của trình duyệt (nếu có) + jsQR, QR to và rõ hơn
 function qr(t){const q=qrcode(0,'L');q.addData(t);q.make();const n=q.getModuleCount(),m=4;let p='';for(let r=0;r<n;r++)for(let c=0;c<n;c++)if(q.isDark(r,c))p+=`M${c+m},${r+m}h1v1h-1z`;return `<svg viewBox="0 0 ${n+2*m} ${n+2*m}" shape-rendering="crispEdges"><rect width="100%" height="100%" fill="#fff"/><path d="${p}" fill="#000"/></svg>`}
-function closeM(){window._payWatch=null;stopCam();$('#modal').style.display='none'}
+function closeM(){window._payWatch=null;clearInterval(window._trk);stopCam();$('#modal').style.display='none'}
 function needQR(){return new Promise(ok=>{if(typeof jsQR!=='undefined')return ok(true);const sc=document.createElement('script');sc.src='https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';sc.onload=()=>ok(typeof jsQR!=='undefined');sc.onerror=()=>ok(false);document.head.appendChild(sc)})}
 function scan(cb){window._cb=cb;modal(`<h3>📷 Quét mã QR</h3><video id="vd" playsinline muted></video><p class="mu" id="sm">Đang mở camera…</p>
 <label class="mu">Hoặc chụp ảnh mã QR:<input type="file" accept="image/*" capture="environment" onchange="fromFile(this.files[0])"></label>
@@ -177,14 +178,67 @@ for(const m of [1600,1000,640,400]){const k=Math.min(1,m/Math.max(bm.width,bm.he
 const r=jsQR(x.getImageData(0,0,c.width,c.height).data,c.width,c.height,{inversionAttempts:'attemptBoth'});if(r&&r.data)return done(r.data)}
 alert('Chưa đọc được mã QR. Hãy chụp gần hơn, mã nằm giữa ảnh, đủ sáng, và tăng độ sáng màn hình của người bán.')}
 // Người bán: tự báo "đã thanh toán" ngay trên màn hình QR
-function payQR(o){const x=D.orders.find(y=>y.id===o),a=x.price*x.qty;window._payWatch=o;modal(`<h3>Thu ${$$(a)}</h3><p class="mu">${e(x.name)} x${x.qty} • ${e(U(x.buyerId).name)}</p>${qr(`KQR:PAY:${o}:${a.toFixed(2)}`)}<p class="mu">Bé quét mã này để thanh toán. Hãy tăng độ sáng màn hình.</p><p>Không quét được? Nhập mã: <b style="font-size:24px;letter-spacing:2px">${sc(x)}</b></p><button class="l" onclick="closeM()">Đóng</button>`)}
-function poll(){if(busy||stream||(document.activeElement&&document.activeElement.tagName=='INPUT'))return;pull().then(n=>{if(!n||busy||n.ver===D.ver)return;D=n;const w=window._payWatch;if(w){const o=D.orders.find(y=>y.id===w);if(o&&o.status!='unpaid'){modal(`<h3>✅ Đã nhận thanh toán!</h3><p><b>${$$(o.price*o.qty)}</b> từ ${e(U(o.buyerId).name)}<br>${e(o.name)} x${o.qty}</p><button class="g" onclick="closeM()">OK</button>`);window._payWatch=null}}render()}).catch(()=>{})}
+function payQR(o){const x=D.orders.find(y=>y.id===o),a=x.price*x.qty;window._payWatch=o;modal(`<h3>Thu ${$$(a)}</h3><p class="mu">${e(x.name)} x${x.qty} • ${e(U(x.buyerId).name)}</p>${qr(`KQR:PAY:${o}:${a.toFixed(2)}`)}<p class="mu">Khách quét để trả tiền, nhận hàng tại shop. Shipper quét để nhận đơn đi giao. Hãy tăng độ sáng màn hình.</p><p>Không quét được? Nhập mã: <b style="font-size:24px;letter-spacing:2px">${sc(x)}</b></p><button class="l" onclick="closeM()">Đóng</button>`)}
+function poll(){if(busy||stream||(document.activeElement&&document.activeElement.tagName=='INPUT'))return;pull().then(n=>{if(!n||busy||n.ver===D.ver)return;D=n;const w=window._payWatch;if(w){const o=D.orders.find(y=>y.id===w);if(o&&o.status!='unpaid'){modal(`<h3>✅ Đã nhận thanh toán!</h3><p><b>${$$(o.price*o.qty)}</b> từ ${e(U(o.buyerId).name)}<br>${e(o.name)} x${o.qty}</p><button class="g" onclick="closeM()">OK</button>`);window._payWatch=null}else if(o&&(o.status=='paid'||o.status=='delivered')){modal(`<h3>✅ Đã nhận thanh toán!</h3><p><b>${$$(o.price*o.qty)}</b> từ ${e(U(o.buyerId).name)}<br>${e(o.name)} x${o.qty}<br>Hãy giao hàng cho khách tại shop.</p><button class="g" onclick="closeM()">OK</button>`);window._payWatch=null}}render()}).catch(()=>{})}
 // ---- Mã chữ dự phòng khi không quét được QR (nhập tay vào ô 'Hoặc nhập mã')
 const sc=o=>o.id.slice(-5).toUpperCase();
 function norm(t){t=(t||'').trim();if(/^KQR:/i.test(t))return t;const c=t.toUpperCase().replace(/\s+/g,'');
-const o=D.orders.find(x=>x.buyerId==me&&x.status=='unpaid'&&sc(x)==c);if(o)return `KQR:PAY:${o.id}:${(o.price*o.qty).toFixed(2)}`;
+if(U(me).role=='shipper'){const o=D.orders.find(x=>x.status=='unpaid'&&sc(x)==c);if(o)return `KQR:PAY:${o.id}:${(o.price*o.qty).toFixed(2)}`}
+const o3=D.orders.find(x=>x.buyerId==me&&x.status=='unpaid'&&sc(x)==c);if(o3)return `KQR:PAY:${o3.id}:${(o3.price*o3.qty).toFixed(2)}`;
+const o=D.orders.find(x=>x.buyerId==me&&x.status=='shipping'&&sc(x)==c);if(o)return `KQR:DLV:${o.id}:${(o.price*o.qty+(o.ship||SHIP)).toFixed(2)}`;
 const tp=D.topups.find(x=>x.code==c);if(tp)return 'KQR:TOP:'+tp.code;return t}
 function done(t){const cb=window._cb;closeM();if(t)cb(norm(t))}
 function showCode(c){const t=D.topups.find(x=>x.code===c);modal(`<h3>Nạp ${$$(t.amt)}</h3>${qr('KQR:TOP:'+c)}<p>Mã chữ: <b style="font-size:20px;letter-spacing:2px">${c}</b></p><p class="mu">Dùng 1 lần • ${t.used?'ĐÃ DÙNG':'Chưa dùng'}</p><button class="l" onclick="closeM()">Đóng</button>`);render()}
+// ---- Giọng đọc thông báo cho người bán
+let voiceOn=true;try{voiceOn=localStorage.getItem('kidshop_voice')!=='off'}catch(x){}
+const spoken=new Set();
+function speak(t){try{const sy=window.speechSynthesis;if(!sy)return;const u=new SpeechSynthesisUtterance(t);u.lang='vi-VN';u.rate=.95;const v=sy.getVoices().find(v=>/^vi/i.test(v.lang));if(v)u.voice=v;sy.speak(u)}catch(x){}}
+function unlockVoice(){try{const u=new SpeechSynthesisUtterance(' ');u.volume=0;speechSynthesis.speak(u)}catch(x){}}
+function toggleVoice(){voiceOn=!voiceOn;try{localStorage.setItem('kidshop_voice',voiceOn?'on':'off')}catch(x){}if(voiceOn)speak('Đã bật giọng đọc');render()}
+function testVoice(){speak('Bạn đã được thanh toán 5 đô la cho đơn hàng 2 bánh mì')}
+function announce(){geoCheck();if(!me||!voiceOn||U(me).role!='seller')return;D.notes.filter(n=>n.uid===me&&!n.read&&n.say&&Date.now()-n.t<600000).forEach(n=>{const k=n.t+n.say;if(spoken.has(k))return;spoken.add(k);speak(n.say)})}
+// ---- Shipper: nhận đơn, theo dõi vị trí, giao hàng (+$5/đơn)
+function handle(t){const p=t.split(':');if(p[0]!=='KQR')return alert('Mã QR không hợp lệ');const u=U(me);
+if(p[1]==='TOP'){const c=D.topups.find(x=>x.code===p[2]);if(!c)return alert('Mã không tồn tại');if(c.used)return alert('Mã này đã được dùng!');
+c.used=true;c.by=me;u.bal+=c.amt;tx(me,'topup',c.amt,'Nạp tiền bằng QR');save();alert('Nạp thành công '+$$(c.amt)+' 🎉');render()}
+else if(p[1]==='PAY'){if(u.role==='buyer'){const o=D.orders.find(x=>x.id===p[2]);if(!o||o.buyerId!==me)return alert('Đơn này không phải của bạn');if(o.status!=='unpaid')return alert('Đơn đã xử lý rồi');
+const amt=o.price*o.qty;if(Math.abs(amt-(+p[3]))>0.001)return alert('Số tiền trên mã không khớp!');if(u.bal<amt)return alert('Không đủ tiền! Cần '+$$(amt));
+if(!confirm(`Thanh toán ${$$(amt)} cho "${o.name}" x${o.qty} (nhận hàng tại shop)?`))return;
+u.bal-=amt;U(o.sellerId).bal+=amt;o.status='paid';o.paidAt=Date.now();tx(me,'pay',-amt,`Mua ${o.name} x${o.qty}`);tx(o.sellerId,'income',amt,`${u.name} mua ${o.name} x${o.qty}`);
+note(o.sellerId,`${u.name} đã thanh toán ${$$(amt)} cho ${o.name} x${o.qty}`,`Bạn đã được thanh toán ${String(+amt.toFixed(2)).replace('.',' phẩy ')} đô la cho đơn hàng ${o.qty} ${o.name}`);
+save();alert('Thanh toán thành công ✅ Hãy nhận hàng tại shop.');render();return}
+if(u.role!=='shipper')return alert('Mã này chỉ dành cho người mua hoặc shipper.');
+const o=D.orders.find(x=>x.id===p[2]);if(!o)return alert('Không tìm thấy đơn');if(o.status!=='unpaid')return alert('Đơn này đã được nhận hoặc đã xử lý');
+if(Math.abs(o.price*o.qty-(+p[3]))>0.001)return alert('Số tiền trên mã không khớp!');
+o.status='shipping';o.shipperId=me;o.startAt=Date.now();o.ship=SHIP;
+note(o.buyerId,`Shipper ${u.name} đang giao ${o.name} x${o.qty} cho bạn 🚚`);note(o.sellerId,`Shipper ${u.name} đã nhận đơn ${o.name} x${o.qty}, đang giao 🚚`);
+save();alert('Bắt đầu giao hàng! Hãy bật GPS và giữ trang này mở.');tab='jobs';render()}
+else if(p[1]==='DLV'){if(u.role!=='buyer')return alert('Mã này dành cho người mua quét khi nhận hàng.');
+const o=D.orders.find(x=>x.id===p[2]);if(!o||o.buyerId!==me)return alert('Đơn này không phải của bạn');if(o.status!=='shipping')return alert('Đơn không ở trạng thái đang giao');
+const base=o.price*o.qty,sh=o.ship||SHIP,tot=base+sh;if(Math.abs(tot-(+p[3]))>0.001)return alert('Số tiền trên mã không khớp!');if(u.bal<tot)return alert('Không đủ tiền! Cần '+$$(tot));
+if(!confirm(`Nhận hàng và thanh toán ${$$(tot)} (gồm phí ship ${$$(sh)})?`))return;
+u.bal-=tot;U(o.sellerId).bal+=base;U(o.shipperId).bal+=sh;o.status='delivered';o.paidAt=Date.now();o.doneAt=Date.now();
+tx(me,'pay',-tot,`Mua ${o.name} x${o.qty} (gồm ship ${$$(sh)})`);tx(o.sellerId,'income',base,`${u.name} mua ${o.name} x${o.qty}`);tx(o.shipperId,'income',sh,`Ship ${o.name} cho ${u.name}`);
+note(o.sellerId,`${u.name} đã thanh toán ${$$(base)} cho ${o.name} x${o.qty}`,`Bạn đã được thanh toán ${String(+base.toFixed(2)).replace('.',' phẩy ')} đô la cho đơn hàng ${o.qty} ${o.name}`);
+note(o.shipperId,`Bạn nhận ${$$(sh)} phí ship cho đơn ${o.name} x${o.qty} 🛵`);clearLoc(o.id);save();alert('Nhận hàng thành công ✅');render()}
+else alert('Mã QR không hợp lệ')}
+async function sendLoc(i,lat,lng){try{if(GAS)await call({a:'setloc',id:i,lat,lng});else localStorage.setItem('kidshop_loc_'+i,JSON.stringify({lat,lng,t:Date.now()}))}catch(x){}}
+async function getLoc(i){try{if(GAS)return await call({a:'getloc',id:i});return JSON.parse(localStorage.getItem('kidshop_loc_'+i)||'null')}catch(x){return null}}
+function clearLoc(i){try{if(GAS)call({a:'delloc',id:i});else localStorage.removeItem('kidshop_loc_'+i)}catch(x){}}
+let geoId=null,lastSend=0,geoMsg='';
+function geoCheck(){const on=me&&U(me).role=='shipper'&&D.orders.some(o=>o.shipperId==me&&o.status=='shipping');
+if(on&&geoId==null){if(!navigator.geolocation){geoMsg='Thiết bị không hỗ trợ GPS';return}
+geoId=navigator.geolocation.watchPosition(p=>{geoMsg='📡 Đang gửi vị trí của bạn';const n=Date.now();if(n-lastSend<8000)return;lastSend=n;D.orders.filter(o=>o.shipperId==me&&o.status=='shipping').forEach(o=>sendLoc(o.id,p.coords.latitude,p.coords.longitude))},()=>{geoMsg='⚠️ Chưa lấy được vị trí: hãy bật GPS và cho phép truy cập vị trí'},{enableHighAccuracy:true,maximumAge:5000,timeout:20000})}
+else if(!on&&geoId!=null){navigator.geolocation.clearWatch(geoId);geoId=null}}
+function track(i){const o=D.orders.find(x=>x.id===i);window._lk='';modal(`<h3>📍 Vị trí shipper</h3><p class="mu">${e(o.name)} x${o.qty} • Shipper ${e(U(o.shipperId).name)}</p><div id="tm"><p>Đang tải vị trí…</p></div><button class="l" onclick="closeM()">Đóng</button>`);
+const up=async()=>{const l=await getLoc(i),el=$('#tm');if(!el)return;if(!l||!l.lat){el.innerHTML='<p class="mu">Chưa có vị trí (shipper cần bật GPS và giữ trang mở).</p>';return}
+const k=l.lat+','+l.lng;if(window._lk===k)return;window._lk=k;const d=.004;
+el.innerHTML=`<iframe style="width:100%;height:260px;border:0;border-radius:12px" src="https://www.openstreetmap.org/export/embed.html?bbox=${l.lng-d},${l.lat-d},${l.lng+d},${l.lat+d}&layer=mapnik&marker=${l.lat},${l.lng}"></iframe><p class="mu">Cập nhật ${new Date(l.t).toLocaleTimeString('vi-VN')} • <a href="https://www.google.com/maps?q=${k}" target="_blank" rel="noopener">Mở Google Maps</a></p>`};
+up();window._trk=setInterval(up,8000)}
+function dlvQR(i){const o=D.orders.find(x=>x.id===i),a=o.price*o.qty+(o.ship||SHIP);modal(`<h3>Khách trả ${$$(a)}</h3><p class="mu">${e(o.name)} x${o.qty} (gồm ship ${$$(o.ship||SHIP)}) • ${e(U(o.buyerId).name)}</p>${qr(`KQR:DLV:${i}:${a.toFixed(2)}`)}<p>Mã chữ: <b style="font-size:22px;letter-spacing:2px">${sc(o)}</b></p><p class="mu">Khách quét mã này khi nhận hàng.</p><button class="l" onclick="closeM()">Đóng</button>`)}
+V.jobs=()=>`<div class="card"><h3>Nhận đơn</h3><p class="mu">Quét QR người bán đang hiện (hoặc nhập mã chữ) để bắt đầu giao. Phí ship ${$$(SHIP)}/đơn.</p><button class="g" onclick="scan(handle)">📷 Quét QR nhận đơn</button><p class="mu">${geoMsg}</p></div>`+(D.orders.filter(o=>o.shipperId==me).reverse().map(o=>oc(o,1)+`<div class="mu">Người bán: ${e(U(o.sellerId).name)}</div>`+(o.status=='shipping'?`<button class="g" onclick="dlvQR('${o.id}')">📱 Hiện QR giao hàng</button>`:'')+'</div>').join('')||'<p>Chưa có đơn nào.</p>');
+V.my=()=>D.orders.filter(o=>o.buyerId==me&&o.status!='cancelled').reverse().map(o=>oc(o)+(o.status=='shipping'||(o.status=='delivered'&&o.ship)?`<div class="mu">Phí ship +${$$(o.ship||SHIP)} → tổng ${$$(o.price*o.qty+(o.ship||SHIP))}${o.status=='delivered'?' (đã trả)':' (trả khi nhận hàng)'}</div>`:'')+(o.status=='unpaid'?`<div class="mu">Trả ${$$(o.price*o.qty)} tại shop (quét QR của người bán), hoặc chờ shipper giao (+${$$(SHIP)} phí ship).</div><button class="g" onclick="scan(handle)">📷 Quét QR thanh toán</button><button class="r" onclick="cancel('${o.id}')">Hủy</button>`:'')+(o.status=='paid'?'<div class="mu">Đã thanh toán – nhận hàng tại shop</div>':'')+(o.status=='shipping'?`<div><button class="g" onclick="scan(handle)">📷 Quét mã nhận hàng</button><button onclick="track('${o.id}')">📍 Xem vị trí</button></div>`:'')+'</div>').join('')||'<p>Chưa có đơn.</p>';
+V.orders=()=>D.orders.filter(o=>o.sellerId==me).reverse().map(o=>oc(o,1)+`<div>${o.status=='unpaid'?`<button onclick="payQR('${o.id}')">📱 Hiện QR cho shipper</button><button class="r" onclick="cancel('${o.id}')">Hủy</button>`:''}${o.status=='shipping'?`<button onclick="track('${o.id}')">📍 Xem vị trí</button> <span class="mu">Shipper: ${e(U(o.shipperId).name)}</span>`:''}${o.status=='paid'?`<button class="g" onclick="deliver('${o.id}')">🤝 Xác nhận đã giao hàng</button><button class="r" onclick="cancel('${o.id}')">Hủy & hoàn tiền</button>`:''}</div></div>`).join('')||'<p>Chưa có đơn hàng.</p>';
+function poll(){if(busy||stream||(document.activeElement&&document.activeElement.tagName=='INPUT'))return;pull().then(n=>{if(!n||busy||n.ver===D.ver)return;D=n;const w=window._payWatch;if(w){const o=D.orders.find(y=>y.id===w);if(o&&o.status=='shipping'){modal(`<h3>🚚 Shipper đã nhận đơn</h3><p>${e(o.name)} x${o.qty}<br>Shipper: ${e(U(o.shipperId).name)}</p><button class="g" onclick="closeM()">OK</button>`);window._payWatch=null}}render()}).catch(()=>{})}
 boot();
 </script></body></html>
