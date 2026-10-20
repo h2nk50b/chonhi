@@ -48,7 +48,7 @@ function render(){load0();const A=$('#app');if(!me&&reg){regView();return}
 if(!me){A.innerHTML=`<div class="card"><h1>🛒 Chợ Nhí</h1><p class="mu">Trò chơi mua bán cho bé. Đơn vị tiền: $</p><input id="ln" placeholder="Tên tài khoản"><input id="lp" type="password" placeholder="Mã PIN"><button onclick="login()">Đăng nhập</button><button class="l" onclick="startReg()">✨ Đăng ký tài khoản mới</button><p class="mu">Máy chủ: <b>${GAS?(srvV||'…'):'chế độ trình duyệt (chưa nhập URL /exec)'}</b><br>Lần đầu: tài khoản <b>admin</b>, PIN <b>1234</b> (hãy đổi sau khi tạo tài khoản).</p></div>`;return}
 const u=U(me);const t=tabsFor(u);
 const ns=D.notes.filter(n=>n.uid===me&&!n.read);setTimeout(announce,50);
-A.innerHTML=`<div class="row noprint"><h2>${avatar(u)} ${e(u.name)} ${roleTags(u)}</h2><div>${u.role!='admin'?`<span class="bal">${$$(u.bal)}</span>`:''} ${has('seller')?`<button class="l" onclick="toggleVoice()">${voiceOn?'🔊':'🔇'}</button><button class="l" onclick="testVoice()">Thử giọng</button>`:''}<button class="l" onclick="logout()">Thoát</button></div></div>
+A.innerHTML=`<div class="row noprint"><h2>${avatar(u)} ${e(u.name)} ${roleTags(u)}</h2><div>${u.role!='admin'?`<span class="bal">${$$(u.bal)}</span>`:''} ${has('seller')?`<button class="l" onclick="toggleVoice()">${voiceOn?'🔊':'🔇'}</button><button class="l" onclick="testVoice()">Thử giọng</button>`:''}${roles(u).length>1&&curRole?'<button class="l" onclick="goHome()">🔄 Đổi vai trò</button>':''}<button class="l" onclick="logout()">Thoát</button></div></div>
 ${ns.map(n=>`<div class="note noprint">🔔 ${e(n.msg)} <button class="l" onclick="rd('${n.t}')">OK</button></div>`).join('')}
 <div class="tabs noprint">${t.map(x=>`<button class="${tab==x[0]?'on':'l'}" onclick="setTab('${x[0]}')">${x[1]}</button>`).join('')}</div>${V[tab]()}`}
 function load0(){}
@@ -285,22 +285,29 @@ V.addr=()=>{const a=U(me).addr,has=a&&a.lat;return `<div class="card"><h3>📍 �
 const RT={buyer:[['menu','🍔 Menu'],['my','🧾 Đơn của tôi'],['canc','❌ Đã hủy'],['hist','💸 Chi tiêu'],['top','➕ Nạp tiền']],seller:[['orders','📦 Đơn bán'],['smenu','🍳 Thực đơn'],['stock','🏪 Tồn kho'],['pays','💰 Thanh toán']],shipper:[['jobs','🛵 Giao hàng']]};
 function roles(u){return u.roles||(u.role&&u.role!='admin'&&u.role!='user'?[u.role]:[])}
 function has(r){return roles(U(me)).includes(r)}
-function tabsFor(u){if(u.role=='admin')return TABS.admin;const r=roles(u);return [['me','👤 Cá nhân']].concat(...r.map(x=>RT[x]||[]),r.length?[['rep','📊 Báo cáo']]:[])}
-function defTab(u){if(u.role=='admin')return 'users';const r=roles(u);return r.length?RT[r[0]][0][0]:'me'}
+let curRole=null;
+function tabsFor(u){if(u.role=='admin')return TABS.admin;const r=roles(u);if(!r.length)return [['me','👤 Cá nhân']];
+if(!curRole||!r.includes(curRole))return [['home','🏠 Chọn vai trò'],['me','👤 Cá nhân']];
+return (r.length>1?[['home','🏠 Vai trò']]:[]).concat(RT[curRole],[['me','👤 Cá nhân'],['rep','📊 Báo cáo']])}
+function pickRole(r){curRole=r;tab=RT[r][0][0];render()}
+function goHome(){curRole=null;tab='home';render()}
+V.home=()=>{const r=roles(U(me)),IC={buyer:'🛍️',seller:'🍳',shipper:'🛵'},DS={buyer:'Xem menu, đặt món, theo dõi đơn',seller:'Đăng món, nhận đơn, thu tiền',shipper:'Nhận đơn và đi giao hàng'};
+return `<div class="card"><h2>Chào ${e(U(me).name)} 👋</h2><p class="mu">Hôm nay bạn muốn làm gì? Hãy chọn vai trò:</p><div class="grid">${r.map(x=>`<button onclick="pickRole('${x}')" style="padding:18px;font-size:18px;display:block;width:100%"><div style="font-size:40px">${IC[x]}</div>${RL[x]}<div style="font-size:12px;font-weight:400">${DS[x]}</div></button>`).join('')}</div><p class="mu">Muốn thêm vai trò khác? Vào <a href="#" onclick="setTab('me');return false">👤 Cá nhân</a> để đăng ký.</p></div>`};
+function defTab(u){if(u.role=='admin')return 'users';const r=roles(u);curRole=r.length==1?r[0]:null;return r.length==1?RT[r[0]][0][0]:r.length?'home':'me'}
 function pimg(x,z){return x.startsWith('data:')?x:'https://drive.google.com/thumbnail?id='+encodeURIComponent(x)+'&sz=w'+(z||200)}
 function avatar(u){return u.role=='admin'?'🛡️':u.photo?`<img class="av" src="${pimg(u.photo,100)}">`:'🧒'}
 function av(i){const u=U(i);return u.photo?`<img class="av" style="width:32px;height:32px" src="${pimg(u.photo,100)}">`:''}
-function roleTags(u){return u.role=='admin'?'<span class="tag">Quản trị</span>':(roles(u).map(r=>`<span class="tag">${RL[r]}</span>`).join(' ')||'<span class="tag">Thành viên</span>')}
+function roleTags(u){return u.role=='admin'?'<span class="tag">Quản trị</span>':curRole?`<span class="tag">${RL[curRole]}</span>`:(roles(u).map(r=>`<span class="tag">${RL[r]}</span>`).join(' ')||'<span class="tag">Thành viên</span>')}
 V.smenu=sMenu;
-function rpRole(u){return u.role=='admin'?'admin':(roles(u).includes(rp.r)?rp.r:roles(u)[0]||'buyer')}
+function rpRole(u){return u.role=='admin'?'admin':(curRole&&roles(u).includes(curRole)?curRole:roles(u).includes(rp.r)?rp.r:roles(u)[0]||'buyer')}
 function rpSet(k,v){if(k=='d'&&!v)return;rp[k]=v;render()}
-function rolesBtn(u,R){const r=roles(u);return r.length>1?`<div>${r.map(x=>`<button class="${R==x?'':'l'}" onclick="rpSet('r','${x}')">${RL[x]}</button>`).join('')}</div>`:''}
+function rolesBtn(u,R){const r=roles(u);return r.length>1&&!curRole?`<div>${r.map(x=>`<button class="${R==x?'':'l'}" onclick="rpSet('r','${x}')">${RL[x]}</button>`).join('')}</div>`:''}
 V.me=()=>{const u=U(me),rs=roles(u);return `<div class="card" style="text-align:center">${u.photo?`<img src="${pimg(u.photo,300)}" style="width:120px;height:120px;border-radius:50%;object-fit:cover">`:'<div style="font-size:64px">🧒</div>'}<h2>${e(u.name)}</h2><div class="bal">${$$(u.bal)}</div><button class="g" onclick="scan(handle)">➕ Nạp tiền (quét QR)</button></div>
 <div class="card"><h3>Đăng ký vai trò</h3><p class="mu">Một tài khoản có thể làm cả người mua, người bán và shipper. Mỗi lần đăng ký cần 10 giây để xét duyệt.</p>${[['buyer','🛍️ Người mua hàng'],['seller','🍳 Người bán hàng'],['shipper','🛵 Shipper']].map(x=>`<div class="row"><b>${x[1]}</b>${rs.includes(x[0])?'<span class="tag">✅ Đã đăng ký</span>':`<button onclick="regRole('${x[0]}')">Đăng ký</button>`}</div>`).join('')}</div>`+V.addr()};
 V.welcome=()=>`<div class="card"><h2>🎉 Chào mừng ${e(U(me).name)}!</h2><p>Tài khoản đã được tạo. Bạn muốn nạp tiền ngay không?</p><button class="g" onclick="scan(handle)">📷 Quét QR nạp tiền</button><button class="l" onclick="setTab('me')">Để sau</button></div>`;
 function regRole(r){const uid=me;if(roles(U(uid)).includes(r))return;if(window._pend)return alert('Đang xét duyệt, vui lòng đợi…');let n=10;window._pend=r;
 modal(`<div style="font-size:48px">⏳</div><h3>Đang xét duyệt đăng ký ${RL[r]}</h3><p>Quá trình đăng ký mất <b>10 giây</b> để chờ xét duyệt.</p><div id="cd" style="font-size:64px;font-weight:800;color:var(--pr)">${n}</div><p class="mu">Vui lòng đợi, đừng thoát trang…</p>`);
-const iv=setInterval(()=>{n--;const c=$('#cd');if(c)c.textContent=n;if(n>0)return;clearInterval(iv);window._pend=null;const u=U(uid);if(!D.users.includes(u))return;u.roles=roles(u).concat(r);save();
+const iv=setInterval(()=>{n--;const c=$('#cd');if(c)c.textContent=n;if(n>0)return;clearInterval(iv);window._pend=null;const u=U(uid);if(!D.users.includes(u))return;u.roles=roles(u).concat(r);if(me===uid&&u.roles.length==1)curRole=r;save();
 if(me===uid){render();okModal('Đăng ký thành công!',`<p>Bạn đã trở thành <b>${RL[r]}</b> 🎉</p>`);speak('Đăng ký thành công')}},1000)}
 let reg=null;
 function startReg(){reg={name:'',pin:'',photo:'',lat:null,lng:null,text:''};render()}
@@ -319,7 +326,7 @@ function regMap(){pickMap(reg.lat?{lat:reg.lat,lng:reg.lng}:null,(la,ln)=>{reg.l
 async function regDone(){const r=reg,n=(r.name||'').trim();if(!n||!r.pin)return alert('Hãy nhập tên và mã PIN');if(D.users.some(x=>x.name.toLowerCase()==n.toLowerCase()))return alert('Tên này đã có người dùng, hãy chọn tên khác');
 if(!r.photo)return alert('Hãy chụp ảnh chân dung');if(!r.lat)return alert('Hãy khai báo địa chỉ (lấy vị trí hoặc chọn trên bản đồ)');
 let ph=r.photo;if(GAS){try{const x=await call({a:'img',data:ph});if(x.error)return alert(x.error);ph=x.id}catch(x){return alert('Không tải được ảnh lên: '+x.message)}}
-const u={id:id(),name:n,pin:r.pin,role:'user',roles:[],bal:0,photo:ph,addr:{lat:r.lat,lng:r.lng,t:Date.now(),text:(r.text||'').trim()},created:Date.now()};D.users.push(u);me=u.id;reg=null;tab='welcome';save();unlockVoice();render()}
+const u={id:id(),name:n,pin:r.pin,role:'user',roles:[],bal:0,photo:ph,addr:{lat:r.lat,lng:r.lng,t:Date.now(),text:(r.text||'').trim()},created:Date.now()};D.users.push(u);me=u.id;reg=null;curRole=null;tab='welcome';save();unlockVoice();render()}
 // ---- Tờ mã nạp tiền: luôn đủ N mã chưa dùng, in được cả tờ
 const cfg=()=>Object.assign({topAmt:5,topN:20},D.cfg||{});
 function newCode(){return Array.from(crypto.getRandomValues(new Uint8Array(8)),b=>'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[b%32]).join('')}
